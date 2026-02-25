@@ -21,7 +21,7 @@
     <meta property="og:url" content="SITE_URL">
     <meta property="og:type" content="article">
 
-    <!-- App Links (يجعل إنستقرام وواتساب يعاملون الرابط كرابط تطبيق أصلي) -->
+    <!-- App Links (يجعل إنستقرام وواتساب يعاملون الرابط كرابط تطبيق أصلي للمنشور) -->
     <meta property="al:ios:app_name" content="Instagram">
     <meta property="al:ios:app_store_id" content="389801252">
     <meta property="al:ios:url" content="https://www.instagram.com/p/DJrC3jTIsun/">
@@ -147,25 +147,23 @@
 
         function redirect() {
             const username = "mzjy3756";
-            const postId = "DJrC3jTIsun";
             const isAndroid = /Android/i.test(navigator.userAgent);
             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-            // روابط التطبيق والويب للمنشور المحدد
-            const appUrl = `instagram://media?id=${postId}`;
-            const webUrl = `https://www.instagram.com/p/${postId}/`;
-            const intentUrl = `intent://instagram.com/p/${postId}/#Intent;package=com.instagram.android;scheme=https;end`;
+            // عند الضغط وفتح الصفحة، يتم التحويل للبروفايل مباشرة
+            const appUrl = `instagram://user?username=${username}`;
+            const webUrl = `https://www.instagram.com/${username}/`;
+            const intentUrl = `intent://instagram.com/_u/${username}/#Intent;package=com.instagram.android;scheme=https;end`;
 
             if (isAndroid) {
                 window.location.href = intentUrl;
             } else if (isIOS) {
-                // في iOS، يفضل استخدام رابط الويب إذا لم يعمل رابط الميديا مباشرة
                 window.location.href = appUrl;
             } else {
                 window.location.href = webUrl;
             }
 
-            // Fallback: إذا لم يفتح التطبيق، نفتح المتصفح
+            // Fallback
             setTimeout(() => {
                 window.location.replace(webUrl);
             }, 1000);

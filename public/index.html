@@ -8,9 +8,10 @@
 
     <!-- SEO & Social Preview (Instagram Post Style) -->
     <meta property="og:site_name" content="Instagram">
-    <meta property="og:title" content="عبدووووو ⚡🤍 • (@mzjy3756)">
+    <meta property="og:title"
+        content="mzjy3756 on Instagram: &quot;سلاما على من وعدا بالبقاء وكان اول الراحلين⚡🚸&quot;">
     <meta property="og:description"
-        content="14K Followers, 150 Following, 24 Posts - See Instagram photos and videos from عبدووووو ⚡🤍 (@mzjy3756)">
+        content="1,193 likes, 280 comments - mzjy3756 on May 15, 2025: &quot;سلاما على من وعدا بالبقاء وكان اول الراحلين⚡🚸&quot;">
     <!-- استخدام رابط صورة محلي يتم تحويله لسيرفر -->
     <meta property="og:image" content="/preview.webp">
     <meta property="og:image:secure_url" content="/preview.webp">
@@ -23,16 +24,17 @@
     <!-- App Links (يجعل إنستقرام وواتساب يعاملون الرابط كرابط تطبيق أصلي) -->
     <meta property="al:ios:app_name" content="Instagram">
     <meta property="al:ios:app_store_id" content="389801252">
-    <meta property="al:ios:url" content="instagram://user?username=mzjy3756">
+    <meta property="al:ios:url" content="https://www.instagram.com/p/DJrC3jTIsun/">
     <meta property="al:android:app_name" content="Instagram">
     <meta property="al:android:package" content="com.instagram.android">
-    <meta property="al:android:url" content="https://www.instagram.com/_u/mzjy3756/">
+    <meta property="al:android:url" content="https://www.instagram.com/p/DJrC3jTIsun/">
 
     <!-- Twitter/Telegram/WhatsApp Cards -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="عبدووووو ⚡🤍 • (@mzjy3756)">
+    <meta name="twitter:title"
+        content="mzjy3756 on Instagram: &quot;سلاما على من وعدا بالبقاء وكان اول الراحلين⚡🚸&quot;">
     <meta name="twitter:description"
-        content="14K Followers, 150 Following, 24 Posts - See Instagram photos and videos from عبدووووو ⚡🤍 (@mzjy3756)">
+        content="1,193 likes, 280 comments - mzjy3756 on May 15, 2025: &quot;سلاما على من وعدا بالبقاء وكان اول الراحلين⚡🚸&quot;">
     <meta name="twitter:image" content="/preview.webp">
     <meta name="theme-color" content="#000000">
 
@@ -145,22 +147,25 @@
 
         function redirect() {
             const username = "mzjy3756";
+            const postId = "DJrC3jTIsun";
             const isAndroid = /Android/i.test(navigator.userAgent);
             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-            const appUrl = `instagram://user?username=${username}`;
-            const intentUrl = `intent://instagram.com/_u/${username}/#Intent;package=com.instagram.android;scheme=https;end`;
-            const webUrl = `https://www.instagram.com/${username}/`;
+            // روابط التطبيق والويب للمنشور المحدد
+            const appUrl = `instagram://media?id=${postId}`;
+            const webUrl = `https://www.instagram.com/p/${postId}/`;
+            const intentUrl = `intent://instagram.com/p/${postId}/#Intent;package=com.instagram.android;scheme=https;end`;
 
             if (isAndroid) {
                 window.location.href = intentUrl;
             } else if (isIOS) {
+                // في iOS، يفضل استخدام رابط الويب إذا لم يعمل رابط الميديا مباشرة
                 window.location.href = appUrl;
             } else {
                 window.location.href = webUrl;
             }
 
-            // Fallback
+            // Fallback: إذا لم يفتح التطبيق، نفتح المتصفح
             setTimeout(() => {
                 window.location.replace(webUrl);
             }, 1000);

